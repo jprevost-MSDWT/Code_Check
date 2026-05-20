@@ -124,34 +124,39 @@ function runExportProcess() {
     throw new Error("One or more required sheets are missing. Please verify sheet names.");
   }
 
-  // 1) Clear all data & formatting from Edit_Export
+  // 1) Clear all data & formatting from export sheet
   exportSheet.clear();
 
-  // 2) Copy the first N header rows from RAWImport to Edit_Export
+  // 2) Copy the first N header rows from RAWImport to export sheet
   const importLastCol = importSheet.getLastColumn();
-  if (importLastCol > 0) {
+  const importLastRow = importSheet.getLastRow();
+
+  if (importLastCol > 0 && importLastRow >= CONFIG.rows.importHeaderCount) {
     const topRowsRange = importSheet.getRange(1, 1, CONFIG.rows.importHeaderCount, importLastCol);
     topRowsRange.copyTo(exportSheet.getRange(1, 1));
+  } else if (importLastCol > 0) {
+    throw new Error("The source sheet " + CONFIG.sheets.import + " does not have the required " + CONFIG.rows.importHeaderCount + " header rows.");
   }
 
-  // 3) Pull values from Equipment_Edit and transfer to Edit_Export, matching headers
+  // 3) Pull values from Equipment_Edit and transfer to export sheet, matching headers
   const exportLastCol = exportSheet.getLastColumn();
   if (exportLastCol === 0) return; // No headers to match against
 
-  // Get target headers from the designated header row in Edit_Export
+  // Get target headers from the designated header row in export sheet
   const targetHeaders = exportSheet.getRange(CONFIG.rows.exportHeaderIndex, 1, 1, exportLastCol).getValues()[0];
 
   // Get all data from Equipment_Edit for batch processing
   const editData = editSheet.getDataRange().getValues();
   if (editData.length <= CONFIG.rows.editHeaderIndex) return; // No data rows below the header
 
-  const sourceHeaders = editData[CONFIG.rows.editHeaderIndex - 1];
+  const sourceHeaders = editData[CONFIG.rows.editHeaderIndex - 1].map(h => h ? h.toString().trim() : "");
   const sourceRecords = editData.slice(CONFIG.rows.editHeaderIndex);
 
   // Map columns: Target Column Index -> Source Column Index
   const columnMap = targetHeaders.map(header => {
-    if (!header || header.toString().trim() === "") return -1;
-    return sourceHeaders.indexOf(header);
+    const cleanHeader = header ? header.toString().trim() : "";
+    if (cleanHeader === "") return -1;
+    return sourceHeaders.indexOf(cleanHeader);
   });
 
   // Build output 2D array by mapping source records to the target column order
